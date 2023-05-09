@@ -59,9 +59,10 @@ class TestCommandsServe < JekyllUnitTest
         "livereload"  => true,
         "source"      => @temp_dir,
         "destination" => @destination,
+        "livereload_ignore" => ["mod.js"],
       }
 
-      site = instance_double(Jekyll::Site)
+      @site = instance_double(Jekyll::Site)
       simple_page = <<-HTML.gsub(%r!^\s*!, "")
       <!DOCTYPE HTML>
       <html lang="en-US">
@@ -76,7 +77,7 @@ class TestCommandsServe < JekyllUnitTest
       HTML
 
       File.write(File.join(@destination, "hello.html"), simple_page)
-      allow(Jekyll::Site).to receive(:new).and_return(site)
+      allow(Jekyll::Site).to receive(:new).and_return(@site)
     end
 
     teardown do
@@ -130,6 +131,21 @@ class TestCommandsServe < JekyllUnitTest
       )
       assert_match(%r!&amp;mindelay=3!, content)
       assert_match(%r!&amp;maxdelay=1066!, content)
+    end
+
+    should "ignore a mod.js" do
+      regenerator = instance_double(Jekyll::Regenerator)
+      page = instance_double(Jekyll::Page, relative_path: "mod.js", url: "/mod.js")
+      allow(@site).to receive(:each_site_file).and_yield(page)
+      allow(@site).to receive(:regenerator).and_return(regenerator)
+      allow(regenerator).to receive(:regenerate?).and_return(true)
+
+      expect(File).to receive(:fnmatch).with("mod.js", "mod.js")
+
+      serve(@standard_options)
+
+      Jekyll::Hooks.trigger(:site, :post_render, @site)
+      Jekyll::Hooks.trigger(:site, :post_write, "abc")
     end
   end
 
